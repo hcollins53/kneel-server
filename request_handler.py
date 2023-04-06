@@ -32,7 +32,6 @@ class HandleRequests(BaseHTTPRequestHandler):
     # Here's a class function
     def do_GET(self):
         """Handles GET requests to the server """
-        self._set_headers(200)
         response = {}  # Default response
 
     # Parse the URL and capture the tuple that is returned
@@ -41,29 +40,52 @@ class HandleRequests(BaseHTTPRequestHandler):
         if resource == "metals":
             if id is not None:
                 response = get_single_metal(id)
+                if response is not None:
+                    self._set_headers(200)
+                else:
+                    response = {"message": f'That metal is not currently in stock'}
+                    self._set_headers(404)
             else:
+                self._set_headers(200)
                 response = get_all_metals()
         if resource == "orders":
             if id is not None:
                 response = get_single_order(id)
+                if response is not None:
+                    self._set_headers(200)
+                else:
+                    response = {"message": "that order was never placed or was cancelled"}
+                    self._set_headers(404)
             else:
+                self._set_headers(200)
                 response = get_all_orders()
         if resource == "sizes":
             if id is not None:
                 response = get_single_size(id)
+                if response is not None:
+                    self._set_headers(200)
+                else:
+                    response = {"message": "That size is not currently in stock"}
+                    self._set_headers(404)
             else:
+                self._set_headers(200)
                 response = get_all_sizes()
         if resource == "styles":
             if id is not None:
                 response = get_single_style(id)
+                if response is not None:
+                    self._set_headers(200)
+                else:
+                    response = {"message": "that style is not currently in stock"}
+                    self._set_headers(404)
             else:
+                self._set_headers(200)
                 response = get_all_styles()
 
         self.wfile.write(json.dumps(response).encode())
 
     def do_POST(self):
         """Handles POST requests to the server """
-        self._set_headers(201)
 
         content_len = int(self.headers.get('content-length', 0))
         post_body = self.rfile.read(content_len)
@@ -73,7 +95,12 @@ class HandleRequests(BaseHTTPRequestHandler):
         new_order = None
 
         if resource == "orders":
-            new_order = create_order(post_body)
+            if "size_id" in post_body and "metal_id" in post_body and "style_id" in post_body:
+                self._set_headers(201)
+                new_order = create_order(post_body)
+            else:
+                self._set_headers(404)
+                new_order = {"message": f'{"a size is required" if "size_id" not in post_body else ""} {"a style is required" if "style_id" not in post_body else ""} {"a metal is required" if "metal_id" not in post_body else ""}'}
         self.wfile.write(json.dumps(new_order).encode())
 
     def do_PUT(self):
@@ -93,12 +120,16 @@ class HandleRequests(BaseHTTPRequestHandler):
         self.wfile.write("".encode())
     def do_DELETE(self):
         "delete an order"
-        self._set_headers(204)
         (resource, id) = self.parse_url(self.path)
 
         if resource == "orders":
-            delete_order(id)
-
+            self._set_headers(405)
+            response = {"message": f"Deleting this order is not allowed"}
+        
+        if response is not None:
+            self.wfile.write(json.dumps(response).encode())
+        else:
+            self.wfile.write("".encode())
     def _set_headers(self, status):
         """Sets the status code, Content-Type and Access-Control-Allow-Origin
         headers on the response
